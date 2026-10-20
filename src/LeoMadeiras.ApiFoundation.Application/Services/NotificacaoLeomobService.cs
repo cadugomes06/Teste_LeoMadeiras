@@ -20,13 +20,18 @@ public class NotificacaoLeomobService
 
     private readonly ILeomobApiClient _leomob;
     private readonly INotificacaoLeomobRepository _notificacoes;
+    private readonly TravaReprocessamento _trava;
     private readonly ILogger<NotificacaoLeomobService> _logger;
 
     public NotificacaoLeomobService(
-        ILeomobApiClient leomob, INotificacaoLeomobRepository notificacoes, ILogger<NotificacaoLeomobService> logger)
+        ILeomobApiClient leomob,
+        INotificacaoLeomobRepository notificacoes,
+        TravaReprocessamento trava,
+        ILogger<NotificacaoLeomobService> logger)
     {
         _leomob = leomob;
         _notificacoes = notificacoes;
+        _trava = trava;
         _logger = logger;
     }
 
@@ -65,10 +70,23 @@ public class NotificacaoLeomobService
     }
 
     /// <summary>
-    /// Simula o worker: tenta de novo as notificações PENDENTE (e as INICIAL paradas).
-    /// Notificações em FALHA ou CONCLUIDO não são mais tentadas.
+    /// Tenta de novo as notificações PENDENTE (e as INICIAL paradas). Notificações em FALHA ou CONCLUIDO não são
+    /// mais tentadas. Usado pelo worker de reprocessamento automático e pelo endpoint manual, uma rodada por vez.
     /// </summary>
     public async Task<ResultadoReprocessamento> ReprocessarAsync(CancellationToken cancellationToken)
+    {
+        await _trava.EsperarAsync(cancellationToken);
+        try
+        {
+            return await ReprocessarPendentesAsync(cancellationToken);
+        }
+        finally
+        {
+            _trava.Liberar();
+        }
+    }
+
+    private async Task<ResultadoReprocessamento> ReprocessarPendentesAsync(CancellationToken cancellationToken)
     {
         var notificacoes = await _notificacoes.ListarParaReprocessarAsync(
             DateTime.UtcNow - TempoMaximoEmInicial, cancellationToken);

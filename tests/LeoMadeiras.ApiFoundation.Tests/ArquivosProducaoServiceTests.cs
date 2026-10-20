@@ -260,7 +260,7 @@ public class ArquivosProducaoServiceTests : IDisposable
     private ArquivosProducaoService CriarService(AppDbContext contexto)
     {
         var notificacoes = new NotificacaoLeomobRepository(contexto);
-        var notificacaoLeomob = new NotificacaoLeomobService(_leomob, notificacoes, NullLogger<NotificacaoLeomobService>.Instance);
+        var notificacaoLeomob = new NotificacaoLeomobService(_leomob, notificacoes, new TravaReprocessamento(), NullLogger<NotificacaoLeomobService>.Instance);
 
         return new ArquivosProducaoService(new PedidoRepository(contexto), notificacoes, _armazenamento, notificacaoLeomob,
             NullLogger<ArquivosProducaoService>.Instance);

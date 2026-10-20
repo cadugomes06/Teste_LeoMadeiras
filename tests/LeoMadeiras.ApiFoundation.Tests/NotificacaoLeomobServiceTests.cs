@@ -120,7 +120,7 @@ public class NotificacaoLeomobServiceTests : IDisposable
     {
         using var contexto = _banco.CriarContexto();
         var service = new NotificacaoLeomobService(
-            _leomob, new NotificacaoLeomobRepository(contexto), NullLogger<NotificacaoLeomobService>.Instance);
+            _leomob, new NotificacaoLeomobRepository(contexto), new TravaReprocessamento(), NullLogger<NotificacaoLeomobService>.Instance);
 
         return await service.ReprocessarAsync(CancellationToken.None);
     }

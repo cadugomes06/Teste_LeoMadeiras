@@ -12,7 +12,10 @@ public class NotificacoesController : ControllerBase
 
     public NotificacoesController(NotificacaoLeomobService service) => _service = service;
 
-    /// <summary>Simula o worker: tenta de novo as notificações à LeomobAPI que ficaram pendentes.</summary>
+    /// <summary>
+    /// Dispara na hora o reprocessamento das notificações à LeomobAPI que ficaram pendentes
+    /// (o mesmo que o worker faz sozinho a cada intervalo).
+    /// </summary>
     /// <response code="200">Resumo do reprocessamento (quantas concluídas, ainda pendentes e em falha).</response>
     [HttpPost("reprocessar")]
     [ProducesResponseType<ResultadoReprocessamento>(StatusCodes.Status200OK)]

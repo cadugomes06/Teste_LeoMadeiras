@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using LeoMadeiras.ApiFoundation.Api.Workers;
 using LeoMadeiras.ApiFoundation.Application;
 using LeoMadeiras.ApiFoundation.Infrastructure;
 
@@ -10,6 +11,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddSwaggerGen();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddOptions<ReprocessamentoOptions>()
+    .Bind(builder.Configuration.GetSection(ReprocessamentoOptions.Secao))
+    .Validate(o => o.IntervaloSegundos > 0, $"{ReprocessamentoOptions.Secao}:IntervaloSegundos deve ser maior que zero.")
+    .ValidateOnStart();
+builder.Services.AddHostedService<ReprocessamentoNotificacoesWorker>();
 
 var app = builder.Build();
 
