@@ -47,6 +47,10 @@ public class ArquivosProducaoService
         // Cada serviço é tratado de forma independente: a falha de um não impede os demais (regra 2).
         foreach (var servico in envio.Services)
         {
+            // Todo log emitido enquanto este serviço é processado sai com o PedidoSVL, inclusive o de bibliotecas
+            // que não conhecem o pedido (avisos do EF, um HttpClient real...). Facilita rastrear um pedido nos logs.
+            using var escopoLog = _logger.BeginScope("PedidoSVL {PedidoSVL}", servico.PedidoSVL);
+
             try
             {
                 var pedido = await _pedidos.ObterComLinksAsync(servico.PedidoSVL, cancellationToken);

@@ -78,6 +78,7 @@ public class NotificacaoLeomobService
             // Se o cliente desistir, não começa a próxima; mas a tentativa já iniciada vai até o fim,
             // senão a LeomobAPI poderia ser avisada sem o resultado ficar gravado (e seria avisada de novo).
             cancellationToken.ThrowIfCancellationRequested();
+            using var escopoLog = _logger.BeginScope("PedidoSVL {PedidoSVL}", notificacao.Pedido.PedidoSVL);
             await TentarEnviarAsync(notificacao, CancellationToken.None);
         }
 
