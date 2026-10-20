@@ -23,6 +23,9 @@ public sealed class BancoEmMemoria : IDisposable
         contexto.Database.EnsureCreated();
     }
 
+    /// <summary>Conexão que mantém o banco vivo; a API dos testes de integração usa a mesma.</summary>
+    public SqliteConnection Conexao => _conexao;
+
     public AppDbContext CriarContexto() => new(_opcoes);
 
     public void Dispose() => _conexao.Dispose();

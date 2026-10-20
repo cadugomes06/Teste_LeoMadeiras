@@ -32,7 +32,7 @@ public class AppDbContext : DbContext
             // Base da idempotência: o mesmo link não pode ser gravado duas vezes para o mesmo pedido.
             link.HasIndex(l => new { l.PedidoId, l.Categoria, l.Url }).IsUnique();
             link.Property(l => l.Categoria).HasConversion<string>().HasMaxLength(30);
-            link.Property(l => l.Url).HasMaxLength(2048);
+            link.Property(l => l.Url).HasMaxLength(LinkArquivo.TamanhoMaximoUrl);
         });
 
         modelBuilder.Entity<NotificacaoLeomob>(notificacao =>

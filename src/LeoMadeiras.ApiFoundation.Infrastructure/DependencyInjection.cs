@@ -2,6 +2,7 @@ using LeoMadeiras.ApiFoundation.Application.Interfaces;
 using LeoMadeiras.ApiFoundation.Infrastructure.Armazenamento;
 using LeoMadeiras.ApiFoundation.Infrastructure.Leomob;
 using LeoMadeiras.ApiFoundation.Infrastructure.Persistence;
+using LeoMadeiras.ApiFoundation.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ public static class DependencyInjection
     {
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlite(configuration.GetConnectionString("ApiFoundation")));
+        services.AddScoped<IPedidoRepository, PedidoRepository>();
 
         // Fakes sem estado: uma instância serve a aplicação inteira.
         services.AddSingleton<IArmazenamentoArquivos, ArmazenamentoArquivosFake>();
