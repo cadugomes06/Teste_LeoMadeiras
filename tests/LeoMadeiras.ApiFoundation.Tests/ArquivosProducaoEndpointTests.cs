@@ -1,7 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using LeoMadeiras.ApiFoundation.Application.DTOs;
 using LeoMadeiras.ApiFoundation.Domain.Enums;
 using LeoMadeiras.ApiFoundation.Tests.Apoio;
@@ -12,11 +10,6 @@ namespace LeoMadeiras.ApiFoundation.Tests;
 public class ArquivosProducaoEndpointTests : IDisposable
 {
     private const string Rota = "/api/arquivos-producao";
-
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
 
     private readonly ApiFactory _api = new();
     private readonly HttpClient _cliente;
@@ -33,7 +26,7 @@ public class ArquivosProducaoEndpointTests : IDisposable
             new { serviceId = 1, pedidoSVL = 9999, links = new { } }));
 
         Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
-        var resultado = await resposta.Content.ReadFromJsonAsync<ResultadoProcessamento>(Json);
+        var resultado = await resposta.Content.ReadFromJsonAsync<ResultadoProcessamento>(JsonApi.Opcoes);
         Assert.Equal(new ServicoProcessado(1007, 21763653, TipoPedido.ZLPL, 1, null), Assert.Single(resultado!.Processados));
         Assert.Equal(9999, Assert.Single(resultado.Falhas).PedidoSVL);
     }
@@ -45,12 +38,12 @@ public class ArquivosProducaoEndpointTests : IDisposable
             ServicoValido()));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resposta.StatusCode);
-        var problema = await resposta.Content.ReadFromJsonAsync<ProblemDetails>(Json);
+        var problema = await resposta.Content.ReadFromJsonAsync<ProblemDetails>(JsonApi.Opcoes);
         Assert.Contains("hasErrors", problema!.Detail);
 
         var pedido = await _cliente.PostAsJsonAsync(Rota, Envio(hasErrors: false,
             ServicoValido()));
-        var resultado = await pedido.Content.ReadFromJsonAsync<ResultadoProcessamento>(Json);
+        var resultado = await pedido.Content.ReadFromJsonAsync<ResultadoProcessamento>(JsonApi.Opcoes);
         Assert.Equal(1, Assert.Single(resultado!.Processados).LinksNovos); // o envio rejeitado não gravou o link
     }
 
@@ -60,7 +53,7 @@ public class ArquivosProducaoEndpointTests : IDisposable
         var resposta = await _cliente.PostAsJsonAsync(Rota, Envio(hasErrors: false, new { pedidoSVL = 1007 }));
 
         Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
-        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(Json);
+        var problema = await resposta.Content.ReadFromJsonAsync<ValidationProblemDetails>(JsonApi.Opcoes);
         Assert.Contains(problema!.Errors.Keys, chave => chave.EndsWith("ServiceId", StringComparison.OrdinalIgnoreCase));
     }
 

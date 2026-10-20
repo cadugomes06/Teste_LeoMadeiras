@@ -1,3 +1,4 @@
+using System.Globalization;
 using LeoMadeiras.ApiFoundation.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -12,20 +13,28 @@ namespace LeoMadeiras.ApiFoundation.Tests.Apoio;
 /// <summary>Sobe a API de verdade em memória, trocando o banco em arquivo por um SQLite em memória.</summary>
 public sealed class ApiFactory : WebApplicationFactory<Program>
 {
-    private readonly BancoEmMemoria _banco = new();
+    private readonly double _taxaFalhaLeomob;
+
+    /// <param name="taxaFalhaLeomob">0 = a LeomobAPI falsa nunca falha; 1 = sempre falha.</param>
+    public ApiFactory(double taxaFalhaLeomob = 0) => _taxaFalhaLeomob = taxaFalhaLeomob;
+
+    public BancoEmMemoria Banco { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
 
-        // A LeomobAPI falsa nunca falha aqui, independentemente do que estiver nos appsettings.
+        // Fixa o comportamento da LeomobAPI falsa, independentemente do que estiver nos appsettings.
         builder.ConfigureAppConfiguration(configuracao => configuracao.AddInMemoryCollection(
-            new Dictionary<string, string?> { ["LeomobFake:TaxaFalha"] = "0" }));
+            new Dictionary<string, string?>
+            {
+                ["LeomobFake:TaxaFalha"] = _taxaFalhaLeomob.ToString(CultureInfo.InvariantCulture)
+            }));
 
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<DbContextOptions<AppDbContext>>();
-            services.AddDbContext<AppDbContext>(options => options.UseSqlite(_banco.Conexao));
+            services.AddDbContext<AppDbContext>(options => options.UseSqlite(Banco.Conexao));
         });
     }
 
@@ -33,6 +42,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (disposing)
-            _banco.Dispose();
+            Banco.Dispose();
     }
 }
