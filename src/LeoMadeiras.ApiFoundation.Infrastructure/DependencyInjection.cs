@@ -1,3 +1,6 @@
+using LeoMadeiras.ApiFoundation.Application.Interfaces;
+using LeoMadeiras.ApiFoundation.Infrastructure.Armazenamento;
+using LeoMadeiras.ApiFoundation.Infrastructure.Leomob;
 using LeoMadeiras.ApiFoundation.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -11,6 +14,14 @@ public static class DependencyInjection
     {
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlite(configuration.GetConnectionString("ApiFoundation")));
+
+        // Fakes sem estado: uma instância serve a aplicação inteira.
+        services.AddSingleton<IArmazenamentoArquivos, ArmazenamentoArquivosFake>();
+        services.AddOptions<LeomobFakeOptions>()
+            .Bind(configuration.GetSection(LeomobFakeOptions.Secao))
+            .Validate(o => o.TaxaFalha is >= 0 and <= 1, $"{LeomobFakeOptions.Secao}:TaxaFalha deve estar entre 0 e 1.")
+            .ValidateOnStart();
+        services.AddSingleton<ILeomobApiClient, LeomobApiClientFake>();
 
         return services;
     }
