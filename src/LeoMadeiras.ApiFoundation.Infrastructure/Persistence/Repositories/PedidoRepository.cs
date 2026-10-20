@@ -20,6 +20,9 @@ public class PedidoRepository : IPedidoRepository
             .AsNoTracking()
             .Include(p => p.Links)
             .Include(p => p.Notificacoes)
+            // Uma consulta só (com JOIN): um pedido tem poucos links e notificações, e assim os dois vêm do mesmo
+            // momento do banco. Declarado explicitamente para o EF não avisar sobre consulta com duas coleções.
+            .AsSingleQuery()
             .FirstOrDefaultAsync(p => p.PedidoSVL == pedidoSVL, cancellationToken);
 
     public Task SalvarAlteracoesAsync(CancellationToken cancellationToken) =>

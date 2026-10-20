@@ -1,0 +1,16 @@
+# Sobe a API Foundation com um comando: docker compose up --build  (Swagger em http://localhost:8080/swagger)
+# O "banco" é um arquivo SQLite guardado no volume apifoundation-dados (sobrevive a down/up).
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      # Ambiente de demonstração: Swagger ligado e LeomobAPI falsa falhando em metade das chamadas
+      # (appsettings.Development.json), para ver PENDENTE, reprocessamento e FALHA acontecendo.
+      ASPNETCORE_ENVIRONMENT: Development
+    volumes:
+      - apifoundation-dados:/app/data
+
+volumes:
+  apifoundation-dados:
