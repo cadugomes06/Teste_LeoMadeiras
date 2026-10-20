@@ -8,14 +8,15 @@ public class ArmazenamentoArquivosSpy : IArmazenamentoArquivos
 {
     public List<(int PedidoSVL, CategoriaArquivo Categoria, string Url)> Copias { get; } = new();
 
-    /// <summary>Quando preenchido, as cópias deste pedido falham (simula o armazenamento fora do ar).</summary>
-    public int? FalharParaPedidoSVL { get; set; }
+    /// <summary>
+    /// Executado no início de cada cópia, com o pedidoSVL. Permite simular uma falha (lançando exceção)
+    /// ou outra requisição agindo enquanto esta ainda não gravou.
+    /// </summary>
+    public Action<int>? AoCopiar { get; set; }
 
     public Task CopiarAsync(int pedidoSVL, CategoriaArquivo categoria, string url, CancellationToken cancellationToken)
     {
-        if (pedidoSVL == FalharParaPedidoSVL)
-            throw new IOException("Armazenamento indisponível (falha simulada).");
-
+        AoCopiar?.Invoke(pedidoSVL);
         Copias.Add((pedidoSVL, categoria, url));
         return Task.CompletedTask;
     }

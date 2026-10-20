@@ -1,5 +1,6 @@
 using LeoMadeiras.ApiFoundation.Application.DTOs;
 using LeoMadeiras.ApiFoundation.Application.Services;
+using LeoMadeiras.ApiFoundation.Domain.Entities;
 using LeoMadeiras.ApiFoundation.Domain.Enums;
 using LeoMadeiras.ApiFoundation.Infrastructure.Persistence;
 using LeoMadeiras.ApiFoundation.Infrastructure.Persistence.Repositories;
@@ -13,6 +14,7 @@ public class ArquivosProducaoServiceTests : IDisposable
 {
     private readonly BancoEmMemoria _banco = new();
     private readonly ArmazenamentoArquivosSpy _armazenamento = new();
+    private readonly LeomobApiClientSpy _leomob = new();
 
     public void Dispose() => _banco.Dispose();
 
@@ -56,10 +58,7 @@ public class ArquivosProducaoServiceTests : IDisposable
     public async Task Reenvio_com_um_link_a_mais_grava_e_copia_so_o_novo()
     {
         await ProcessarAsync(Servico(1007, 21763653));
-        var servico = Servico(1007, 21763653);
-        servico.Links!.Etiquetas!.Add("https://arquivos.exemplo.com/1007/etiqueta-2.png");
-
-        var reenvio = await ProcessarAsync(servico);
+        var reenvio = await ProcessarAsync(ServicoComEtiquetaExtra(1007, 21763653));
 
         Assert.Equal(1, reenvio.Processados.Single().LinksNovos);
         Assert.Equal("https://arquivos.exemplo.com/1007/etiqueta-2.png", _armazenamento.Copias.Last().Url);
@@ -108,7 +107,10 @@ public class ArquivosProducaoServiceTests : IDisposable
     [Fact]
     public async Task Falha_na_copia_vira_falha_do_servico_e_o_reenvio_copia_de_novo()
     {
-        _armazenamento.FalharParaPedidoSVL = 1007;
+        _armazenamento.AoCopiar = pedidoSVL =>
+        {
+            if (pedidoSVL == 1007) throw new IOException("Armazenamento indisponível (falha simulada).");
+        };
 
         var resultado = await ProcessarAsync(Servico(1007, 21763653), Servico(1008, 21763654));
 
@@ -116,7 +118,7 @@ public class ArquivosProducaoServiceTests : IDisposable
         Assert.Equal(1008, Assert.Single(resultado.Processados).PedidoSVL);
         Assert.Equal(0, await ContarLinksAsync(1007));
 
-        _armazenamento.FalharParaPedidoSVL = null;
+        _armazenamento.AoCopiar = null;
         var reenvio = await ProcessarAsync(Servico(1007, 21763653));
 
         Assert.Equal(4, reenvio.Processados.Single().LinksNovos);
@@ -137,6 +139,114 @@ public class ArquivosProducaoServiceTests : IDisposable
         Assert.Empty(_armazenamento.Copias);
     }
 
+    [Fact]
+    public async Task Pedido_ZMOB_grava_INICIAL_antes_de_chamar_a_Leomob_e_conclui_quando_ela_responde()
+    {
+        StatusNotificacao? statusDuranteAChamada = null;
+        _leomob.AoNotificar = () =>
+        {
+            using var outroContexto = _banco.CriarContexto();
+            statusDuranteAChamada = outroContexto.NotificacoesLeomob.Single().Status;
+        };
+
+        var resultado = await ProcessarAsync(Servico(1012, 21763699));
+
+        Assert.Equal(StatusNotificacao.INICIAL, statusDuranteAChamada);
+        Assert.Equal(StatusNotificacao.CONCLUIDO, resultado.Processados.Single().Notificacao);
+        var notificacao = Assert.Single(await ObterNotificacoesAsync(1012));
+        Assert.Equal((StatusNotificacao.CONCLUIDO, 1), (notificacao.Status, notificacao.Tentativas));
+        Assert.Equal(4, Assert.Single(_leomob.Chamadas).Count);
+    }
+
+    [Fact]
+    public async Task Falha_da_Leomob_deixa_a_notificacao_PENDENTE_com_uma_tentativa()
+    {
+        _leomob.Falhar = true;
+
+        var resultado = await ProcessarAsync(Servico(1012, 21763699));
+
+        var processado = Assert.Single(resultado.Processados);
+        Assert.Equal(StatusNotificacao.PENDENTE, processado.Notificacao);
+        Assert.Equal(4, processado.LinksNovos);
+        var notificacao = Assert.Single(await ObterNotificacoesAsync(1012));
+        Assert.Equal((StatusNotificacao.PENDENTE, 1), (notificacao.Status, notificacao.Tentativas));
+        Assert.Contains("indisponível", notificacao.UltimoErro);
+    }
+
+    [Fact]
+    public async Task Envio_repetido_de_pedido_ZMOB_nao_duplica_links_nem_notificacoes()
+    {
+        await ProcessarAsync(Servico(1012, 21763699));
+
+        var reenvio = await ProcessarAsync(Servico(1012, 21763699));
+
+        Assert.Equal(0, reenvio.Processados.Single().LinksNovos);
+        Assert.Null(reenvio.Processados.Single().Notificacao);
+        Assert.Equal(4, await ContarLinksAsync(1012));
+        Assert.Single(await ObterNotificacoesAsync(1012));
+        Assert.Single(_leomob.Chamadas);
+    }
+
+    [Fact]
+    public async Task Link_novo_com_notificacao_PENDENTE_nao_cria_outra_notificacao()
+    {
+        _leomob.Falhar = true;
+        await ProcessarAsync(Servico(1012, 21763699));
+        var reenvio = await ProcessarAsync(ServicoComEtiquetaExtra(1012, 21763699));
+
+        Assert.Equal(1, reenvio.Processados.Single().LinksNovos);
+        Assert.Null(reenvio.Processados.Single().Notificacao);
+        Assert.Single(await ObterNotificacoesAsync(1012));
+        Assert.Single(_leomob.Chamadas);
+    }
+
+    [Fact]
+    public async Task Link_novo_depois_de_notificacao_CONCLUIDO_gera_nova_notificacao_com_todos_os_links()
+    {
+        await ProcessarAsync(Servico(1012, 21763699));
+        await ProcessarAsync(ServicoComEtiquetaExtra(1012, 21763699));
+
+        Assert.Equal(2, (await ObterNotificacoesAsync(1012)).Count(n => n.Status == StatusNotificacao.CONCLUIDO));
+        Assert.Equal(5, _leomob.Chamadas.Last().Count);
+    }
+
+    [Fact]
+    public async Task Pedidos_ZLPL_e_ZCVS_nao_notificam_a_Leomob()
+    {
+        await ProcessarAsync(Servico(1007, 21763653), Servico(1008, 21763654));
+
+        Assert.Empty(_leomob.Chamadas);
+        Assert.Empty(await ObterNotificacoesAsync(1007));
+    }
+
+    [Fact]
+    public async Task Envio_simultaneo_do_mesmo_servico_vira_falha_do_item_sem_derrubar_os_demais()
+    {
+        // Enquanto este envio copia os arquivos (antes de gravar), "outra requisição" grava o mesmo link.
+        var outraRequisicaoJaGravou = false;
+        _armazenamento.AoCopiar = pedidoSVL =>
+        {
+            if (pedidoSVL != 1007 || outraRequisicaoJaGravou) return;
+            outraRequisicaoJaGravou = true;
+            using var outroContexto = _banco.CriarContexto();
+            outroContexto.LinksArquivo.Add(new LinkArquivo
+            {
+                PedidoId = 1,
+                Categoria = CategoriaArquivo.CortePdfSumario,
+                Url = "https://arquivos.exemplo.com/1007/sumario.pdf",
+                DataRecebimento = DateTime.UtcNow
+            });
+            outroContexto.SaveChanges();
+        };
+
+        var resultado = await ProcessarAsync(Servico(1007, 21763653), Servico(1008, 21763654));
+
+        Assert.Contains("ao mesmo tempo", Assert.Single(resultado.Falhas).Motivo);
+        Assert.Equal(1008, Assert.Single(resultado.Processados).PedidoSVL);
+        Assert.Equal(1, await ContarLinksAsync(1007)); // só o da "outra requisição"
+        Assert.Equal(4, await ContarLinksAsync(1008));
+    }
+
     /// <summary>Cada chamada usa um contexto novo, como uma requisição HTTP separada.</summary>
     private async Task<ResultadoProcessamento> ProcessarAsync(params ServicoRequest[] servicos)
     {
@@ -147,13 +257,33 @@ public class ArquivosProducaoServiceTests : IDisposable
         return resultado.Resumo!;
     }
 
-    private ArquivosProducaoService CriarService(AppDbContext contexto) =>
-        new(new PedidoRepository(contexto), _armazenamento, NullLogger<ArquivosProducaoService>.Instance);
+    private ArquivosProducaoService CriarService(AppDbContext contexto)
+    {
+        var notificacoes = new NotificacaoLeomobRepository(contexto);
+        var notificacaoLeomob = new NotificacaoLeomobService(_leomob, notificacoes, NullLogger<NotificacaoLeomobService>.Instance);
+
+        return new ArquivosProducaoService(new PedidoRepository(contexto), notificacoes, _armazenamento, notificacaoLeomob,
+            NullLogger<ArquivosProducaoService>.Instance);
+    }
+
+    private async Task<List<NotificacaoLeomob>> ObterNotificacoesAsync(int pedidoSVL)
+    {
+        using var contexto = _banco.CriarContexto();
+        return await contexto.NotificacoesLeomob.Where(n => n.Pedido.PedidoSVL == pedidoSVL).OrderBy(n => n.Id).ToListAsync();
+    }
 
     private async Task<int> ContarLinksAsync(int pedidoSVL)
     {
         using var contexto = _banco.CriarContexto();
         return await contexto.Pedidos.Where(p => p.PedidoSVL == pedidoSVL).SelectMany(p => p.Links).CountAsync();
+    }
+
+    /// <summary>O mesmo serviço de <see cref="Servico"/> com uma etiqueta a mais (etiqueta-2).</summary>
+    private static ServicoRequest ServicoComEtiquetaExtra(int pedidoSVL, long serviceId)
+    {
+        var servico = Servico(pedidoSVL, serviceId);
+        servico.Links!.Etiquetas!.Add($"https://arquivos.exemplo.com/{pedidoSVL}/etiqueta-2.png");
+        return servico;
     }
 
     /// <summary>Serviço no formato do exemplo do enunciado: um arquivo de cada categoria.</summary>

@@ -1,5 +1,7 @@
+using LeoMadeiras.ApiFoundation.Application.Exceptions;
 using LeoMadeiras.ApiFoundation.Domain.Entities;
 using LeoMadeiras.ApiFoundation.Domain.Enums;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace LeoMadeiras.ApiFoundation.Infrastructure.Persistence;
@@ -11,6 +13,25 @@ public class AppDbContext : DbContext
     public DbSet<Pedido> Pedidos => Set<Pedido>();
     public DbSet<LinkArquivo> LinksArquivo => Set<LinkArquivo>();
     public DbSet<NotificacaoLeomob> NotificacoesLeomob => Set<NotificacaoLeomob>();
+
+    /// <summary>
+    /// Traduz a violação de índice único do SQLite para uma exceção da Application, que não conhece o EF.
+    /// (SaveChangesAsync(CancellationToken) também passa por aqui.)
+    /// </summary>
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is SqliteException { SqliteExtendedErrorCode: SqliteUniqueConstraint })
+        {
+            throw new RegistroDuplicadoException("O registro já foi gravado por outro processamento.", ex);
+        }
+    }
+
+    // SQLITE_CONSTRAINT_UNIQUE: https://www.sqlite.org/rescode.html#constraint_unique
+    private const int SqliteUniqueConstraint = 2067;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,9 +62,10 @@ public class AppDbContext : DbContext
             notificacao.HasIndex(n => n.Status);
 
             // No máximo uma notificação ativa (ainda não resolvida) por pedido, mesmo com requisições concorrentes.
+            // Gera o filtro SQL: "Status" IN ('INICIAL', 'PENDENTE')
             notificacao.HasIndex(n => n.PedidoId)
                 .IsUnique()
-                .HasFilter($"\"Status\" IN ('{nameof(StatusNotificacao.INICIAL)}', '{nameof(StatusNotificacao.PENDENTE)}')");
+                .HasFilter($"\"Status\" IN ({string.Join(", ", NotificacaoLeomob.StatusAtivos.Select(s => $"'{s}'"))})");
         });
     }
 }

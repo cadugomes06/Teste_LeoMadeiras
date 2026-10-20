@@ -1,3 +1,4 @@
+using LeoMadeiras.ApiFoundation.Application.Exceptions;
 using LeoMadeiras.ApiFoundation.Domain.Entities;
 using LeoMadeiras.ApiFoundation.Domain.Enums;
 using LeoMadeiras.ApiFoundation.Tests.Apoio;
@@ -34,7 +35,7 @@ public class AppDbContextTests : IDisposable
         using var contexto = _banco.CriarContexto();
         contexto.Pedidos.Add(new Pedido { PedidoSVL = 1007, ServiceId = 1, TipoPedido = TipoPedido.ZLPL });
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => contexto.SaveChangesAsync());
+        await Assert.ThrowsAsync<RegistroDuplicadoException>(() => contexto.SaveChangesAsync());
     }
 
     [Fact]
@@ -43,7 +44,7 @@ public class AppDbContextTests : IDisposable
         await SalvarAsync(NovoLink(CategoriaArquivo.Etiqueta));
 
         // Simula uma segunda requisição: outro contexto tentando gravar o mesmo link.
-        await Assert.ThrowsAsync<DbUpdateException>(() => SalvarAsync(NovoLink(CategoriaArquivo.Etiqueta)));
+        await Assert.ThrowsAsync<RegistroDuplicadoException>(() => SalvarAsync(NovoLink(CategoriaArquivo.Etiqueta)));
     }
 
     [Fact]
@@ -59,7 +60,7 @@ public class AppDbContextTests : IDisposable
     {
         await SalvarAsync(NovaNotificacao(StatusNotificacao.PENDENTE));
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => SalvarAsync(NovaNotificacao(StatusNotificacao.INICIAL)));
+        await Assert.ThrowsAsync<RegistroDuplicadoException>(() => SalvarAsync(NovaNotificacao(StatusNotificacao.INICIAL)));
     }
 
     [Fact]

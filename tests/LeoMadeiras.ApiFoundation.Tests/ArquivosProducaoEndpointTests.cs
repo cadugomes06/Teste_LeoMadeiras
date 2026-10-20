@@ -34,7 +34,7 @@ public class ArquivosProducaoEndpointTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
         var resultado = await resposta.Content.ReadFromJsonAsync<ResultadoProcessamento>(Json);
-        Assert.Equal(new ServicoProcessado(1007, 21763653, TipoPedido.ZLPL, 1), Assert.Single(resultado!.Processados));
+        Assert.Equal(new ServicoProcessado(1007, 21763653, TipoPedido.ZLPL, 1, null), Assert.Single(resultado!.Processados));
         Assert.Equal(9999, Assert.Single(resultado.Falhas).PedidoSVL);
     }
 

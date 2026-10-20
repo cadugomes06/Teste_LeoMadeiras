@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlite(configuration.GetConnectionString("ApiFoundation")));
         services.AddScoped<IPedidoRepository, PedidoRepository>();
+        services.AddScoped<INotificacaoLeomobRepository, NotificacaoLeomobRepository>();
 
         // Fakes sem estado: uma instância serve a aplicação inteira.
         services.AddSingleton<IArmazenamentoArquivos, ArmazenamentoArquivosFake>();

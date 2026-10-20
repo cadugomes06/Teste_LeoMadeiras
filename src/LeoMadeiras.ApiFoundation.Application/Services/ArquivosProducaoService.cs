@@ -1,4 +1,5 @@
 using LeoMadeiras.ApiFoundation.Application.DTOs;
+using LeoMadeiras.ApiFoundation.Application.Exceptions;
 using LeoMadeiras.ApiFoundation.Application.Interfaces;
 using LeoMadeiras.ApiFoundation.Domain.Entities;
 using LeoMadeiras.ApiFoundation.Domain.Enums;
@@ -10,14 +11,22 @@ namespace LeoMadeiras.ApiFoundation.Application.Services;
 public class ArquivosProducaoService
 {
     private readonly IPedidoRepository _pedidos;
+    private readonly INotificacaoLeomobRepository _notificacoes;
     private readonly IArmazenamentoArquivos _armazenamento;
+    private readonly NotificacaoLeomobService _notificacaoLeomob;
     private readonly ILogger<ArquivosProducaoService> _logger;
 
     public ArquivosProducaoService(
-        IPedidoRepository pedidos, IArmazenamentoArquivos armazenamento, ILogger<ArquivosProducaoService> logger)
+        IPedidoRepository pedidos,
+        INotificacaoLeomobRepository notificacoes,
+        IArmazenamentoArquivos armazenamento,
+        NotificacaoLeomobService notificacaoLeomob,
+        ILogger<ArquivosProducaoService> logger)
     {
         _pedidos = pedidos;
+        _notificacoes = notificacoes;
         _armazenamento = armazenamento;
+        _notificacaoLeomob = notificacaoLeomob;
         _logger = logger;
     }
 
@@ -54,10 +63,17 @@ public class ArquivosProducaoService
                     continue;
                 }
 
-                var linksNovos = await ProcessarLinksNovosAsync(pedido, servico.Links, cancellationToken);
+                var (linksNovos, notificacao) = await ProcessarLinksNovosAsync(pedido, servico.Links, cancellationToken);
 
                 _logger.LogInformation("Pedido {PedidoSVL}: {QuantidadeLinks} links novos recebidos", pedido.PedidoSVL, linksNovos);
-                processados.Add(new ServicoProcessado(pedido.PedidoSVL, pedido.ServiceId, pedido.TipoPedido, linksNovos));
+                processados.Add(new ServicoProcessado(pedido.PedidoSVL, pedido.ServiceId, pedido.TipoPedido, linksNovos, notificacao));
+            }
+            catch (RegistroDuplicadoException)
+            {
+                // Outra requisição gravou os mesmos links (ou a notificação) no meio deste processamento.
+                _pedidos.DescartarAlteracoes();
+                falhas.Add(Falha(servico,
+                    "O mesmo serviço estava sendo processado por outro envio ao mesmo tempo. Reenvie para confirmar."));
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
@@ -66,7 +82,7 @@ public class ArquivosProducaoService
                 _logger.LogError(ex, "Pedido {PedidoSVL}: erro inesperado ao processar o serviço {ServiceId}",
                     servico.PedidoSVL, servico.ServiceId);
                 falhas.Add(new FalhaServico(servico.PedidoSVL, servico.ServiceId,
-                    "Erro inesperado ao processar o serviço. Reenvie para tentar de novo."));
+                    "Erro inesperado ao processar o serviço."));
             }
         }
 
@@ -74,15 +90,17 @@ public class ArquivosProducaoService
     }
 
     /// <summary>
-    /// Trata apenas os links que o pedido ainda não tem, então um reenvio idêntico não gera nenhum efeito (regra 7).
-    /// Retorna quantos links novos foram gravados.
+    /// Trata apenas os links que o pedido ainda não tem, então um reenvio idêntico não gera nenhum efeito (regra 7):
+    /// nada é gravado, copiado ou notificado. Retorna quantos links novos foram gravados e o status da notificação
+    /// criada (null se nenhuma foi criada).
     /// </summary>
-    private async Task<int> ProcessarLinksNovosAsync(Pedido pedido, LinksRequest? links, CancellationToken cancellationToken)
+    private async Task<(int LinksNovos, StatusNotificacao? Notificacao)> ProcessarLinksNovosAsync(
+        Pedido pedido, LinksRequest? links, CancellationToken cancellationToken)
     {
         var existentes = pedido.Links.Select(l => (l.Categoria, l.Url)).ToHashSet();
         var linksNovos = (links?.Achatar() ?? []).Where(l => !existentes.Contains(l)).ToList();
         if (linksNovos.Count == 0)
-            return 0;
+            return (0, null);
 
         // Regra 4: ZLPL e ZCVS copiam os arquivos; regra 5: ZMOB não baixa nada.
         // A cópia vem antes de gravar: se falhar, nada é gravado e o reenvio da Digibee tenta tudo de novo.
@@ -101,9 +119,30 @@ public class ArquivosProducaoService
             Url = l.Url,
             DataRecebimento = agora
         }));
+
+        // Regra 6: o registro INICIAL é gravado na mesma transação dos links, antes de chamar a LeomobAPI.
+        // Se já existe uma notificação ativa, não cria outra: a retentativa dela já envia todos os links do pedido.
+        NotificacaoLeomob? notificacao = null;
+        if (pedido.TipoPedido == TipoPedido.ZMOB && !await _notificacoes.ExisteAtivaAsync(pedido.Id, cancellationToken))
+        {
+            notificacao = new NotificacaoLeomob
+            {
+                Pedido = pedido,
+                Status = StatusNotificacao.INICIAL,
+                DataCriacao = agora,
+                DataAtualizacao = agora
+            };
+            pedido.Notificacoes.Add(notificacao);
+        }
+
         await _pedidos.SalvarAlteracoesAsync(cancellationToken);
 
-        return linksNovos.Count;
+        // Com o INICIAL já gravado, a tentativa vai até o fim mesmo se o cliente desistir da requisição;
+        // senão a notificação ficaria parada em INICIAL.
+        if (notificacao is not null)
+            await _notificacaoLeomob.TentarEnviarAsync(notificacao, CancellationToken.None);
+
+        return (linksNovos.Count, notificacao?.Status);
     }
 
     private FalhaServico Falha(ServicoRequest servico, string motivo)
