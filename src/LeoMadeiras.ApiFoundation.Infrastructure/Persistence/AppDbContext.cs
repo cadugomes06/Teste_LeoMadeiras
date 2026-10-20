@@ -3,6 +3,7 @@ using LeoMadeiras.ApiFoundation.Domain.Entities;
 using LeoMadeiras.ApiFoundation.Domain.Enums;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace LeoMadeiras.ApiFoundation.Infrastructure.Persistence;
 
@@ -32,6 +33,16 @@ public class AppDbContext : DbContext
 
     // SQLITE_CONSTRAINT_UNIQUE: https://www.sqlite.org/rescode.html#constraint_unique
     private const int SqliteUniqueConstraint = 2067;
+
+    // O SQLite não guarda o "Kind" do DateTime: tudo é gravado convertido para UTC e lido de volta marcado como UTC
+    // (sem isso o JSON sairia sem o "Z" e um cliente poderia interpretar a data como horário local).
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
+        configurationBuilder.Properties<DateTime>().HaveConversion<DateTimeUtcConverter>();
+
+    private sealed class DateTimeUtcConverter : ValueConverter<DateTime, DateTime>
+    {
+        public DateTimeUtcConverter() : base(gravar => gravar.ToUniversalTime(), ler => DateTime.SpecifyKind(ler, DateTimeKind.Utc)) { }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -15,6 +15,13 @@ public class PedidoRepository : IPedidoRepository
             .Include(p => p.Links)
             .FirstOrDefaultAsync(p => p.PedidoSVL == pedidoSVL, cancellationToken);
 
+    public Task<Pedido?> ObterParaConsultaAsync(int pedidoSVL, CancellationToken cancellationToken) =>
+        _contexto.Pedidos
+            .AsNoTracking()
+            .Include(p => p.Links)
+            .Include(p => p.Notificacoes)
+            .FirstOrDefaultAsync(p => p.PedidoSVL == pedidoSVL, cancellationToken);
+
     public Task SalvarAlteracoesAsync(CancellationToken cancellationToken) =>
         _contexto.SaveChangesAsync(cancellationToken);
 

@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using LeoMadeiras.ApiFoundation.Application.DTOs;
 using LeoMadeiras.ApiFoundation.Domain.Enums;
 using LeoMadeiras.ApiFoundation.Tests.Apoio;
+using static LeoMadeiras.ApiFoundation.Tests.Apoio.EnvioArquivos;
 using Microsoft.EntityFrameworkCore;
 
 namespace LeoMadeiras.ApiFoundation.Tests;
@@ -20,15 +21,8 @@ public class NotificacoesEndpointTests : IDisposable
     public async Task Notificacao_ZMOB_vai_para_FALHA_apos_a_terceira_tentativa_sem_sucesso()
     {
         // Tentativa 1: a chamada feita no recebimento dos arquivos.
-        var recebimento = await _cliente.PostAsJsonAsync("/api/arquivos-producao", new
-        {
-            documentType = "filesToProduction",
-            hasErrors = false,
-            services = new[]
-            {
-                new { serviceId = 21763699, pedidoSVL = 1012, links = new { etiquetas = new[] { "https://arquivos.exemplo.com/1012/etiqueta-1.png" } } }
-            }
-        });
+        var recebimento = await _cliente.PostAsJsonAsync(Rota, Envio(hasErrors: false,
+            new { serviceId = 21763699, pedidoSVL = 1012, links = new { etiquetas = new[] { "https://arquivos.exemplo.com/1012/etiqueta-1.png" } } }));
         var resumo = await recebimento.Content.ReadFromJsonAsync<ResultadoProcessamento>(JsonApi.Opcoes);
         Assert.Equal(StatusNotificacao.PENDENTE, Assert.Single(resumo!.Processados).Notificacao);
 

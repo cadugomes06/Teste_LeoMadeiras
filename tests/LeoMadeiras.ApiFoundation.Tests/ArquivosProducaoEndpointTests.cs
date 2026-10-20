@@ -3,14 +3,13 @@ using System.Net.Http.Json;
 using LeoMadeiras.ApiFoundation.Application.DTOs;
 using LeoMadeiras.ApiFoundation.Domain.Enums;
 using LeoMadeiras.ApiFoundation.Tests.Apoio;
+using static LeoMadeiras.ApiFoundation.Tests.Apoio.EnvioArquivos;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LeoMadeiras.ApiFoundation.Tests;
 
 public class ArquivosProducaoEndpointTests : IDisposable
 {
-    private const string Rota = "/api/arquivos-producao";
-
     private readonly ApiFactory _api = new();
     private readonly HttpClient _cliente;
 
@@ -87,7 +86,4 @@ public class ArquivosProducaoEndpointTests : IDisposable
     /// <summary>Pedido 1007 (ZLPL) do seed com uma etiqueta.</summary>
     private static object ServicoValido() =>
         new { serviceId = 21763653, pedidoSVL = 1007, links = new { etiquetas = new[] { "https://arquivos.exemplo.com/1007/etiqueta-1.png" } } };
-
-    private static object Envio(bool hasErrors, params object?[] services) =>
-        new { documentType = "filesToProduction", hasErrors, services };
 }
