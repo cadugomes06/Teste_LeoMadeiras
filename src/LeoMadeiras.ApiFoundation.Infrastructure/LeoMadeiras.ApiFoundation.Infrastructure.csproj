@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.32" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LeoMadeiras.ApiFoundation.Application\LeoMadeiras.ApiFoundation.Application.csproj" />
+    <ProjectReference Include="..\LeoMadeiras.ApiFoundation.Domain\LeoMadeiras.ApiFoundation.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

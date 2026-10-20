@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\LeoMadeiras.ApiFoundation.Domain\LeoMadeiras.ApiFoundation.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

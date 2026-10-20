@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LeoMadeiras.ApiFoundation.Application\LeoMadeiras.ApiFoundation.Application.csproj" />
+    <ProjectReference Include="..\LeoMadeiras.ApiFoundation.Infrastructure\LeoMadeiras.ApiFoundation.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

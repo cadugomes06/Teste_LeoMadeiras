@@ -1,10 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -21,7 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\LeoMadeiras.ApiFoundation\LeoMadeiras.ApiFoundation.csproj" />
+    <ProjectReference Include="..\..\src\LeoMadeiras.ApiFoundation.Infrastructure\LeoMadeiras.ApiFoundation.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\LeoMadeiras.ApiFoundation.Application\LeoMadeiras.ApiFoundation.Application.csproj" />
   </ItemGroup>
 
 </Project>
