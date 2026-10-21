@@ -109,7 +109,7 @@ public async Task ProcessarPagamentoAsync(NotificacaoPagamento notif)
 ```
 
 ### 3.3 E se o ERP enviar a mesma notificação de pagamento duas vezes? O código corrigido resolve?
-TODO
+Sim. No código corrigido a segunda notificação encontra o controle já existente na checagem e sai sem fazer nada.
 
 ---
 
