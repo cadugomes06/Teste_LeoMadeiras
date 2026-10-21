@@ -38,13 +38,15 @@ R: A vantagem é que você não precisa atender aos critérios de implementaçã
 ## Parte 3 — Leitura de código (`ProcessarPagamentoAsync`)
 
 ### 3.1 Problemas encontrados
-| # | Problema | Impacto em produção | Severidade (alto/médio/baixo) |
-|---|---|---|---|
-| 1 | TODO | TODO | TODO |
-| 2 | TODO | TODO | TODO |
-| 3 | TODO | TODO | TODO |
-| 4 | TODO | TODO | TODO |
-| 5 | TODO | TODO | TODO |
+| # | Impacto em produção | Severidade (alto/médio/baixo) |
+|---|---|---|
+| 1 | SQL utilizando variável direto, notif.PedidoSVL está sendo passada direto no sql sem tratamento prévio, deixando brechas de segurança, como sql injection. | (risco alto) |
+| 2 | No trecho do código quando o pedido ainda não existe (pedido == null), acontece o problema de dupla escrita (dual write problem), onde a aplicação não consegue garantir a atomicidade, onde o banco pode falhar ao tentar salvar o pedido e a mensagem chegar com sucesso no Digibee, ou o pedido for salvo com sucesso no banco de dados e falhar ao ser enviado para a Digibee. | (risco médio) |
+| 3 | A Digibee só é chamada quando é um novo pedido. O enunciado diz que o método deve mandar para produção sempre. No fluxo normal o pedido já existe, criado no orçamento, então a maioria dos pagamentos nunca irão subir para produção. | (risco alto) |
+| 4 | Falta o await na chamada da Digibee. Se falhar, o erro se perde e fica sem registro, o método segue como se tivesse dado sucesso. | (risco alto) |
+| 5 | ControleNotificacao é criado posteriormente ao pedido, outro problema de atomicidade, a notificação pode nunca ser salva, ou ser salva sem pedido. | (risco médio) |
+| 6 | try/catch com falsa cobertura, controle com status concluído, sem saber se a mensagem for entregue com sucesso ao serviço SVL, podendo salvar como concluído sem nunca ter sido enviado ao SVL. | (risco alto) |
+
 
 ### 3.2 Método corrigido
 ```csharp
