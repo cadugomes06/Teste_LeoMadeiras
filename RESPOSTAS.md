@@ -119,23 +119,51 @@ Sim. No código corrigido a segunda notificação encontra o controle já existe
 
 ### 4.1 Quantidade de pedidos por `TipoPedido` criados em setembro de 2026
 ```sql
--- TODO
+SELECT p.TipoPedido, COUNT(*) AS Quantidade
+FROM Pedido p
+WHERE p.DataCriacao >= '2026-09-01'
+  AND p.DataCriacao <  '2026-10-01'
+GROUP BY p.TipoPedido;
 ```
 
 ### 4.2 Pedidos `PAGO` há mais de 2 horas sem nenhuma notificação `CONCLUIDO` ("travados")
 ```sql
--- TODO
+SELECT p.Id, p.PedidoSVL, p.LojaId, p.DataCriacao
+FROM Pedido p
+WHERE p.Status = 'PAGO'
+  AND p.DataCriacao < DATEADD(HOUR, -2, GETDATE())
+  AND NOT EXISTS (
+      SELECT 1
+      FROM ControleNotificacao cn
+      WHERE cn.PedidoId = p.Id
+        AND cn.Status = 'CONCLUIDO'
+  );
 ```
 
 ### 4.3 As 5 lojas com mais notificações em `FALHA`
 ```sql
--- TODO
+SELECT TOP 5 p.LojaId, COUNT(*) AS NotificacoesEmFalha
+FROM ControleNotificacao cn
+JOIN Pedido p ON p.Id = cn.PedidoId
+WHERE cn.Status = 'FALHA'
+GROUP BY p.LojaId
+ORDER BY NotificacoesEmFalha DESC;
 ```
 
 ### 4.4 Dois pedidos com o mesmo `PedidoSVL` é um problema? Que alteração faria?
-TODO
+Sim. Porque quebra a indempotência, além de consultas duplicadas para o mesmo PedidoSVL trazendo dificuldade na hora de tratar esses pedidos. 
+Tratar as duplicidades primeiro e depois tornar PedidoSVL UNIQUE.
+
 
 ### 4.5 Índices para a consulta 2 (roda a cada 5 min, milhões de linhas)
 ```sql
--- TODO
+Criar índices:
+-- Encontra direto os pedidos PAGO mais antigos que 2 horas, sem varrer a tabela inteira.
+CREATE INDEX IX_Pedido_Status_DataCriacao
+    ON Pedido (Status, DataCriacao)
+    INCLUDE (PedidoSVL, LojaId);
+
+-- Para o NOT EXISTS, para cada pedido, verifica no índice se há notificação CONCLUIDO.
+CREATE INDEX IX_ControleNotificacao_PedidoId_Status
+    ON ControleNotificacao (PedidoId, Status);
 ```
