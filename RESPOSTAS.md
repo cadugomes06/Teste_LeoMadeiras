@@ -50,7 +50,62 @@ R: A vantagem é que você não precisa atender aos critérios de implementaçã
 
 ### 3.2 Método corrigido
 ```csharp
-// TODO
+public async Task ProcessarPagamentoAsync(NotificacaoPagamento notif)
+{
+    // se já existe controle para este pedido, o pagamento já foi tratado (notificação repetida).
+    // Se ficou PENDENTE, quem tenta de novo é o worker, não esta chamada.
+    var jaProcessado = await _db.ExecuteScalarAsync<int>(
+        "SELECT COUNT(1) FROM ControleNotificacao WHERE PedidoSVL = @PedidoSVL", new { notif.PedidoSVL }) > 0;
+    if (jaProcessado)
+    {
+        _logger.....
+        return;
+    }
+
+    // o valor vai como parâmetro, nunca concatenado no texto da consulta.
+    var pedido = await _db.QueryFirstOrDefaultAsync<Pedido>("SELECT * FROM Pedidos WHERE PedidoSVL = @PedidoSVL", new { notif.PedidoSVL });
+
+    ControleNotificacao controle;
+
+    // Pedido e controle gravados na mesma transação: ou os dois, ou nenhum.
+    using (var transacao = _db.BeginTransaction())
+    {
+        if (pedido == null)
+        {
+            pedido = new Pedido { PedidoSVL = notif.PedidoSVL, ServiceId = notif.ServiceId, Status = "PAGO" };
+            await _db.InsertAsync(pedido, transacao);
+        }
+        else
+        {
+            pedido.Status = "PAGO";
+            await _db.UpdateAsync(pedido, transacao);
+        }
+
+        controle = new ControleNotificacao { PedidoSVL = pedido.PedidoSVL, Status = "INICIAL", Tentativas = 0 };
+        await _db.InsertAsync(controle, transacao);
+
+        transacao.Commit();
+    }
+
+    try
+    {
+        // Manda para produção SEMPRE (pedido novo ou existente), se falhar, o erro não se perde.
+        await _digibee.EnviaServicoParaProducaoAsync(pedido.ServiceId, pedido.PedidoSVL);
+        await _svl.NotificarPagamentoAsync(pedido.PedidoSVL);
+
+        // CONCLUIDO depois que as chamadas deram certo.
+        controle.Status = "CONCLUIDO";
+    }
+    catch (Exception ex)
+    {
+        // fica PENDENTE para o worker tentar de novo, e vai para o log.
+        controle.Status = "PENDENTE";
+        controle.Tentativas++;
+        _logger.....
+    }
+
+    await _db.UpdateAsync(controle);
+}
 ```
 
 ### 3.3 E se o ERP enviar a mesma notificação de pagamento duas vezes? O código corrigido resolve?
