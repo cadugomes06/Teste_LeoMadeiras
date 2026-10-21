@@ -115,8 +115,6 @@ Sim. No código corrigido a segunda notificação encontra o controle já existe
 
 ## Parte 4 — SQL e modelagem
 
-> Dialeto utilizado: TODO (ex.: SQL Server)
-
 ### 4.1 Quantidade de pedidos por `TipoPedido` criados em setembro de 2026
 ```sql
 SELECT p.TipoPedido, COUNT(*) AS Quantidade
@@ -151,7 +149,7 @@ ORDER BY NotificacoesEmFalha DESC;
 ```
 
 ### 4.4 Dois pedidos com o mesmo `PedidoSVL` é um problema? Que alteração faria?
-Sim. Porque quebra a indempotência, além de consultas duplicadas para o mesmo PedidoSVL trazendo dificuldade na hora de tratar esses pedidos. 
+Sim. Porque quebra a idempotência, além de consultas duplicadas para o mesmo PedidoSVL trazendo dificuldade na hora de tratar esses pedidos. 
 Tratar as duplicidades primeiro e depois tornar PedidoSVL UNIQUE.
 
 
